@@ -323,6 +323,139 @@ jobs:
           fi
           echo "diagnose.sh completed successfully"
 
+  arm64-offline-e2e:
+    name: ARM64 offline end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up QEMU for arm64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -qq qemu-user-static binfmt-support
+          docker run --privileged --rm tonistiigi/binfmt --install arm64
+          docker run --rm --platform linux/arm64 ubuntu:26.10 uname -m
+
+      - name: Build the offline bundle
+        run: |
+          # Reproduce what the user copies onto the USB stick: the driver
+          # source, the arm64 kernel headers and the complete gcc/make
+          # dependency closure, all as .deb files.
+          set -euo pipefail
+          WORK="${RUNNER_TEMP}/bundle"
+          mkdir -p "${WORK}/offline-arm64/debs" "${WORK}/offline-arm64/src"
+
+          # 1. the driver source
+          git archive --format=tar.gz --prefix=smifb2-2.6.0/ \
+            -o "${WORK}/offline-arm64/src/smifb2-2.6.0.tar.gz" HEAD
+
+          # 2. the scripts and the documentation
+          cp offline-arm64/*.sh offline-arm64/*.md \
+             offline-arm64/SHA256SUMS "${WORK}/offline-arm64/"
+          chmod +x "${WORK}/offline-arm64/"*.sh
+
+          # 3. the arm64 kernel headers (both packages are required)
+          BASE=https://mirrors.aliyun.com/ubuntu/pool/main/l/linux
+          curl -sSL -o "${WORK}/offline-arm64/debs/linux-headers-7.3.0-9_7.3.0-9.9_all.deb" \
+            "${BASE}/linux-headers-7.3.0-9_7.3.0-9.9_all.deb"
+          curl -sSL -o "${WORK}/offline-arm64/debs/linux-headers-7.3.0-9-generic_7.3.0-9.9_arm64.deb" \
+            "${BASE}/linux-headers-7.3.0-9-generic_7.3.0-9.9_arm64.deb"
+
+          # 4. the gcc/make dependency closure
+          curl -sSL -o "${WORK}/closure.json" \
+            "https://raw.githubusercontent.com/YongfaWang/smifb2/main/offline-arm64/toolchain-manifest.json"
+          python3 - "${WORK}/closure.json" "${WORK}/offline-arm64/debs" <<'PY'
+          import json, os, sys, urllib.request
+          manifest = json.load(open(sys.argv[1]))
+          dest = sys.argv[2]
+          base = "https://mirrors.aliyun.com/ubuntu/"
+          for item in manifest:
+              name = item["filename"].split("/")[-1]
+              target = os.path.join(dest, name)
+              if os.path.exists(target) and os.path.getsize(target) == item["size"]:
+                  continue
+              print("fetching", name, flush=True)
+              req = urllib.request.Request(base + item["filename"],
+                                           headers={"User-Agent": "curl/8"})
+              with urllib.request.urlopen(req, timeout=300) as r:
+                  data = r.read()
+              assert len(data) == item["size"], name
+              open(target, "wb").write(data)
+          PY
+
+          # 5. checksums
+          cd "${WORK}/offline-arm64"
+          sha256sum debs/*.deb src/*.tar.gz > SHA256SUMS
+
+          echo "bundle size:"
+          du -sh "${WORK}/offline-arm64"
+          ls "${WORK}/offline-arm64/debs" | wc -l
+
+      - name: Install and build in an arm64 container without network
+        run: |
+          # This is the exact scenario the user is worried about: an arm64
+          # machine with no network access, no compiler and no kernel
+          # headers.  The container is started with --network none, so
+          # nothing can be downloaded.
+          set -euo pipefail
+          WORK="${RUNNER_TEMP}/bundle"
+
+          docker run --rm \
+            --platform linux/arm64 \
+            --network none \
+            --volume "${WORK}:/bundle:ro" \
+            --workdir /work \
+            ubuntu:26.10 \
+            bash -euxc '
+              mkdir -p /work
+              cp -r /bundle/offline-arm64 /work/
+              cd /work/offline-arm64
+
+              # ---- the machine starts with no compiler ----
+              echo "== before =="
+              command -v gcc || echo "gcc: not installed"
+              command -v make || echo "make: not installed"
+              ls /usr/src/linux-headers-* 2>/dev/null || echo "no kernel headers"
+
+              # ---- step 1: install the offline toolchain ----
+              echo "== installing the offline toolchain =="
+              ./install-toolchain.sh
+
+              echo "== after =="
+              gcc --version | head -1
+              make --version | head -1
+
+              # ---- step 2: install the kernel headers ----
+              echo "== installing the kernel headers =="
+              DEBIAN_FRONTEND=noninteractive dpkg -i debs/linux-headers-7.3.0-9_*.deb || true
+              DEBIAN_FRONTEND=noninteractive dpkg --configure -a || true
+              ls -d /usr/src/linux-headers-*
+
+              # ---- step 3: build and install the driver ----
+              echo "== building the driver =="
+              tar xzf src/smifb2-2.6.0.tar.gz
+              cd smifb2-2.6.0
+              KVER="$(ls -d /usr/src/linux-headers-* | tail -1 | sed "s|.*/||; s/^linux-headers-//")"
+              echo "KVER=${KVER}"
+              ../build-install.sh
+
+              # ---- step 4: verify the module ----
+              echo "== verifying =="
+              test -s smifb.ko
+              file smifb.ko
+              modinfo smifb.ko
+              modinfo -F vermagic smifb.ko
+              test -s /lib/modules/"${KVER}"/updates/dkms/smifb.ko
+              echo "the arm64 module was built and installed"
+
+              # ---- step 5: the diagnostics script has to run ----
+              cd /work/offline-arm64
+              ./diagnose.sh
+            '
+
   code-quality:
     name: Static analysis
     runs-on: ubuntu-latest

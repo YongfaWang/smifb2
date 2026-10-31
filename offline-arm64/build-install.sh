@@ -21,12 +21,26 @@ KVER="${KVER:-$(uname -r)}"
 HDR="/usr/src/linux-headers-${KVER}"
 BUILD_LINK="/lib/modules/${KVER}/build"
 
+# Where the offline bundle keeps the .deb files.  The script normally lives
+# in offline-arm64/ next to debs/, but the source tree may be unpacked
+# elsewhere, so several locations are probed below.
+BUNDLE_DEBS="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/debs"
+
 fail() {
     echo
     echo "!! FAILED: $*" >&2
     echo "!! Nothing has been installed into /lib/modules.  It is safe to fix the" >&2
     echo "!! problem and run this script again." >&2
     exit 1
+}
+
+# Print the build tools that are not available.
+missing_tools() {
+    local missing=""
+    command -v gcc >/dev/null 2>&1 || missing="${missing} gcc"
+    command -v make >/dev/null 2>&1 || missing="${missing} make"
+    command -v ld >/dev/null 2>&1 || missing="${missing} ld"
+    echo "${missing# }"
 }
 
 echo "==> Kernel release : ${KVER}"
@@ -44,12 +58,43 @@ if [ ! -f "${SRC}/Makefile" ]; then
     fail "'${SRC}/Makefile' not found - are you inside the unpacked source tree?"
 fi
 
-if ! command -v make >/dev/null 2>&1; then
-    fail "make not found.  Install build-essential (offline: use the matching .deb files)."
-fi
+if ! command -v make >/dev/null 2>&1 || ! command -v gcc >/dev/null 2>&1; then
+    echo "==> The build tools are not installed (missing: $(missing_tools))"
+    echo
 
-if ! command -v gcc >/dev/null 2>&1; then
-    fail "gcc not found.  Install build-essential (offline: use the matching .deb files)."
+    # Try to install them from the offline bundle.  The bundle ships the
+    # complete dependency closure of gcc/make for arm64, so no network
+    # access is required.
+    TOOL_DEBS=""
+    for dir in "${BUNDLE_DEBS}" "${SRC}/../debs" "${SRC}/debs" "$(dirname "${SRC}")/debs"; do
+        if [ -n "${dir}" ] && [ -d "${dir}" ]; then
+            if ls "${dir}"/gcc*.deb >/dev/null 2>&1 && ls "${dir}"/make*.deb >/dev/null 2>&1; then
+                TOOL_DEBS="${dir}"
+                break
+            fi
+        fi
+    done
+
+    if [ -n "${TOOL_DEBS}" ]; then
+        echo "==> Found the offline toolchain in ${TOOL_DEBS}"
+        echo "==> Installing it (this takes a minute)..."
+        DEBIAN_FRONTEND=noninteractive dpkg -i "${TOOL_DEBS}"/*.deb \
+            || echo "!! dpkg reported errors, running a second pass" >&2
+        DEBIAN_FRONTEND=noninteractive dpkg -i "${TOOL_DEBS}"/*.deb || true
+        DEBIAN_FRONTEND=noninteractive dpkg --configure -a || true
+        echo
+    fi
+
+    if ! command -v make >/dev/null 2>&1 || ! command -v gcc >/dev/null 2>&1; then
+        echo "!! The build tools are still missing: $(missing_tools)" >&2
+        echo "!! Install them from the offline bundle with:" >&2
+        echo "!!     sudo ./install-toolchain.sh" >&2
+        echo "!! or manually:" >&2
+        echo "!!     sudo dpkg -i debs/*.deb" >&2
+        echo "!! (the bundle contains the complete dependency closure)" >&2
+        fail "no compiler available"
+    fi
+    echo "==> The build tools are now available"
 fi
 
 # ---------------------------------------------------------------------------

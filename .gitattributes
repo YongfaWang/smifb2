@@ -10,3 +10,4 @@ Kconfig text eol=lf
 # sha256sum -c on the target machine must see plain LF lines.
 SHA256SUMS text eol=lf
 *.md text eol=lf
+*.json text eol=lf

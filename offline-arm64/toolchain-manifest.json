@@ -1,0 +1,242 @@
+[
+ {
+  "name": "binutils",
+  "version": "2.47-6ubuntu1",
+  "filename": "pool/main/b/binutils/binutils_2.47-6ubuntu1_arm64.deb",
+  "size": 227770
+ },
+ {
+  "name": "binutils-aarch64-linux-gnu",
+  "version": "2.47-6ubuntu1",
+  "filename": "pool/main/b/binutils/binutils-aarch64-linux-gnu_2.47-6ubuntu1_arm64.deb",
+  "size": 1022448
+ },
+ {
+  "name": "binutils-common",
+  "version": "2.47-6ubuntu1",
+  "filename": "pool/main/b/binutils/binutils-common_2.47-6ubuntu1_arm64.deb",
+  "size": 225218
+ },
+ {
+  "name": "cpp",
+  "version": "4:15.2.0-5ubuntu1",
+  "filename": "pool/main/g/gcc-defaults/cpp_15.2.0-5ubuntu1_arm64.deb",
+  "size": 22424
+ },
+ {
+  "name": "cpp-15",
+  "version": "15.3.0-4ubuntu1",
+  "filename": "pool/main/g/gcc-15/cpp-15_15.3.0-4ubuntu1_arm64.deb",
+  "size": 1026
+ },
+ {
+  "name": "cpp-15-aarch64-linux-gnu",
+  "version": "15.3.0-4ubuntu1",
+  "filename": "pool/main/g/gcc-15/cpp-15-aarch64-linux-gnu_15.3.0-4ubuntu1_arm64.deb",
+  "size": 11962976
+ },
+ {
+  "name": "cpp-aarch64-linux-gnu",
+  "version": "4:15.2.0-5ubuntu1",
+  "filename": "pool/main/g/gcc-defaults/cpp-aarch64-linux-gnu_15.2.0-5ubuntu1_arm64.deb",
+  "size": 5840
+ },
+ {
+  "name": "gcc",
+  "version": "4:15.2.0-5ubuntu1",
+  "filename": "pool/main/g/gcc-defaults/gcc_15.2.0-5ubuntu1_arm64.deb",
+  "size": 5004
+ },
+ {
+  "name": "gcc-15",
+  "version": "15.3.0-4ubuntu1",
+  "filename": "pool/main/g/gcc-15/gcc-15_15.3.0-4ubuntu1_arm64.deb",
+  "size": 547064
+ },
+ {
+  "name": "gcc-15-aarch64-linux-gnu",
+  "version": "15.3.0-4ubuntu1",
+  "filename": "pool/main/g/gcc-15/gcc-15-aarch64-linux-gnu_15.3.0-4ubuntu1_arm64.deb",
+  "size": 23586312
+ },
+ {
+  "name": "gcc-15-base",
+  "version": "15.3.0-4ubuntu1",
+  "filename": "pool/main/g/gcc-15/gcc-15-base_15.3.0-4ubuntu1_arm64.deb",
+  "size": 40526
+ },
+ {
+  "name": "gcc-16-base",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/gcc-16-base_16.2.0-3ubuntu1_arm64.deb",
+  "size": 41604
+ },
+ {
+  "name": "gcc-aarch64-linux-gnu",
+  "version": "4:15.2.0-5ubuntu1",
+  "filename": "pool/main/g/gcc-defaults/gcc-aarch64-linux-gnu_15.2.0-5ubuntu1_arm64.deb",
+  "size": 1206
+ },
+ {
+  "name": "libasan8",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libasan8_16.2.0-3ubuntu1_arm64.deb",
+  "size": 2998482
+ },
+ {
+  "name": "libatomic1",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libatomic1_16.2.0-3ubuntu1_arm64.deb",
+  "size": 11098
+ },
+ {
+  "name": "libbinutils",
+  "version": "2.47-6ubuntu1",
+  "filename": "pool/main/b/binutils/libbinutils_2.47-6ubuntu1_arm64.deb",
+  "size": 807448
+ },
+ {
+  "name": "libc-gconv-modules-extra",
+  "version": "2.44-1ubuntu2",
+  "filename": "pool/main/g/glibc/libc-gconv-modules-extra_2.44-1ubuntu2_arm64.deb",
+  "size": 1384380
+ },
+ {
+  "name": "libc6",
+  "version": "2.44-1ubuntu2",
+  "filename": "pool/main/g/glibc/libc6_2.44-1ubuntu2_arm64.deb",
+  "size": 1669562
+ },
+ {
+  "name": "libcc1-0",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libcc1-0_16.2.0-3ubuntu1_arm64.deb",
+  "size": 52008
+ },
+ {
+  "name": "libctf-nobfd0",
+  "version": "2.47-6ubuntu1",
+  "filename": "pool/main/b/binutils/libctf-nobfd0_2.47-6ubuntu1_arm64.deb",
+  "size": 103728
+ },
+ {
+  "name": "libctf0",
+  "version": "2.47-6ubuntu1",
+  "filename": "pool/main/b/binutils/libctf0_2.47-6ubuntu1_arm64.deb",
+  "size": 100880
+ },
+ {
+  "name": "libgcc-15-dev",
+  "version": "15.3.0-4ubuntu1",
+  "filename": "pool/main/g/gcc-15/libgcc-15-dev_15.3.0-4ubuntu1_arm64.deb",
+  "size": 2600326
+ },
+ {
+  "name": "libgcc-s1",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libgcc-s1_16.2.0-3ubuntu1_arm64.deb",
+  "size": 60982
+ },
+ {
+  "name": "libgmp10",
+  "version": "2:6.3.0+dfsg-5ubuntu2",
+  "filename": "pool/main/g/gmp/libgmp10_6.3.0+dfsg-5ubuntu2_arm64.deb",
+  "size": 258028
+ },
+ {
+  "name": "libgomp1",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libgomp1_16.2.0-3ubuntu1_arm64.deb",
+  "size": 154072
+ },
+ {
+  "name": "libgprofng0",
+  "version": "2.47-6ubuntu1",
+  "filename": "pool/main/b/binutils/libgprofng0_2.47-6ubuntu1_arm64.deb",
+  "size": 792644
+ },
+ {
+  "name": "libhwasan0",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libhwasan0_16.2.0-3ubuntu1_arm64.deb",
+  "size": 1667026
+ },
+ {
+  "name": "libisl23",
+  "version": "0.28-1",
+  "filename": "pool/main/i/isl/libisl23_0.28-1_arm64.deb",
+  "size": 679988
+ },
+ {
+  "name": "libitm1",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libitm1_16.2.0-3ubuntu1_arm64.deb",
+  "size": 28206
+ },
+ {
+  "name": "libjansson4",
+  "version": "2.15.1-1",
+  "filename": "pool/main/j/jansson/libjansson4_2.15.1-1_arm64.deb",
+  "size": 50080
+ },
+ {
+  "name": "liblsan0",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/liblsan0_16.2.0-3ubuntu1_arm64.deb",
+  "size": 1336116
+ },
+ {
+  "name": "libmpc3",
+  "version": "1.3.1-3",
+  "filename": "pool/main/m/mpclib3/libmpc3_1.3.1-3_arm64.deb",
+  "size": 55684
+ },
+ {
+  "name": "libmpfr6",
+  "version": "4.2.2-3",
+  "filename": "pool/main/m/mpfr4/libmpfr6_4.2.2-3_arm64.deb",
+  "size": 344796
+ },
+ {
+  "name": "libsframe3",
+  "version": "2.47-6ubuntu1",
+  "filename": "pool/main/b/binutils/libsframe3_2.47-6ubuntu1_arm64.deb",
+  "size": 21468
+ },
+ {
+  "name": "libstdc++6",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libstdc++6_16.2.0-3ubuntu1_arm64.deb",
+  "size": 826870
+ },
+ {
+  "name": "libtsan2",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libtsan2_16.2.0-3ubuntu1_arm64.deb",
+  "size": 2744358
+ },
+ {
+  "name": "libubsan1",
+  "version": "16.2.0-3ubuntu1",
+  "filename": "pool/main/g/gcc-16/libubsan1_16.2.0-3ubuntu1_arm64.deb",
+  "size": 1192594
+ },
+ {
+  "name": "libzstd1",
+  "version": "1.5.7+dfsg-4",
+  "filename": "pool/main/libz/libzstd/libzstd1_1.5.7+dfsg-4_arm64.deb",
+  "size": 275684
+ },
+ {
+  "name": "make",
+  "version": "4.4.1-3",
+  "filename": "pool/main/m/make-dfsg/make_4.4.1-3_arm64.deb",
+  "size": 194068
+ },
+ {
+  "name": "zlib1g",
+  "version": "1:1.3.dfsg+really1.3.2-3ubuntu1",
+  "filename": "pool/main/z/zlib/zlib1g_1.3.dfsg+really1.3.2-3ubuntu1_arm64.deb",
+  "size": 64380
+ }
+]

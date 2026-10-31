@@ -9,6 +9,10 @@
 /offline-arm64/src/
 /offline-arm64.zip
 
+# The toolchain manifest IS tracked: it lists every .deb that makes up the
+# offline build environment, so the bundle can be reproduced from the
+# Ubuntu archive on any machine with a network connection.
+
 # Kernel build output
 *.o
 *.ko

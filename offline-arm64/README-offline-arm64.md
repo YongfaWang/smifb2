@@ -40,11 +40,16 @@ offline-arm64\
 
 ### 仓库里存了什么、没存什么
 
-本仓库**只跟踪脚本和文档**（`build-install.sh`、`diagnose.sh`、`SHA256SUMS`、本文件）。
+本仓库跟踪脚本、文档和**工具链清单**：
+`build-install.sh`、`install-toolchain.sh`、`diagnose.sh`、
+`toolchain-manifest.json`、`SHA256SUMS`、本文件。
+
 `debs/` 和 `src/` 下的二进制产物被 `.gitignore` 排除，原因：
 
-- 头文件 deb 合计约 63 MB，会让仓库体积暴涨，且二进制文件无法做 diff 审查
+- 头文件 + 编译工具链的 deb 合计约 120 MB，会让仓库体积暴涨，且二进制文件无法做 diff 审查
 - 这些文件来自 Ubuntu 官方归档，可以随时重新下载
+- `toolchain-manifest.json` 记录了全部 40 个包的**精确文件名、版本和字节数**，
+  所以离线包可以在任何有网的机器上**完全一致地**重建出来
 
 **在一台有网的机器上准备完整离线包**（这个仓库的根目录下执行）：
 
@@ -59,24 +64,51 @@ BASE=https://mirrors.aliyun.com/ubuntu/pool/main/l/linux
 curl -L -O "$BASE/linux-headers-7.3.0-9_7.3.0-9.9_all.deb"
 curl -L -O "$BASE/linux-headers-7.3.0-9-generic_7.3.0-9.9_arm64.deb"
 
-# 3. 生成校验文件
+# 3. 编译工具链（gcc/make 的完整依赖闭包，40 个包）
+python3 - <<'PY'
+import json, os, urllib.request
+base = "https://mirrors.aliyun.com/ubuntu/"
+manifest = json.load(open("offline-arm64/toolchain-manifest.json"))
+dest = "offline-arm64/debs"
+for item in manifest:
+    name = item["filename"].split("/")[-1]
+    path = os.path.join(dest, name)
+    if os.path.exists(path) and os.path.getsize(path) == item["size"]:
+        continue
+    print("fetching", name, flush=True)
+    req = urllib.request.Request(base + item["filename"], headers={"User-Agent": "curl/8"})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        data = r.read()
+    assert len(data) == item["size"], name
+    open(path, "wb").write(data)
+PY
+
+# 4. 生成校验文件
 cd offline-arm64 && sha256sum debs/*.deb src/*.tar.gz > SHA256SUMS
 ```
 
-> 若目标机器的 `uname -r` 不是 `7.3.0-9-generic`，请按文末 Q6 换成匹配的版本号。
+> 若目标机器的 `uname -r` 不是 `7.3.0-9-generic`，请按文末 Q8 换成匹配的版本号。
 
 > **注意 1**：如果服务器上已经装了 `linux-headers-$(uname -r)`（`apt install linux-headers-generic`），
-> 就不需要带 debs 了。服务器虽无网络，但如果是刚装系统，通常已预装。
+> 就不需要带头文件的 deb 了。服务器虽无网络，但如果是刚装系统，通常已预装。
 >
-> **注意 2**：两个 deb **必须一起安装**。`linux-headers-7.3.0-9-generic` 里的 `include/`、
+> **注意 2**：两个头文件 deb **必须一起安装**。`linux-headers-7.3.0-9-generic` 里的 `include/`、
 > `drivers/` 等是指向基础包 `linux-headers-7.3.0-9` 的符号链接，缺一个会编译失败。
 >
 > **注意 3**：内核版本号要匹配。若服务器 `uname -r` 不是 `7.3.0-9-generic`，
 > 这套头文件用不了（见文末"内核版本不一致"的处理）。
+>
+> **注意 4**：编译工具链的 deb **不区分内核版本**，只要是 arm64 的 Ubuntu 26.10 都能用。
+> 如果服务器上已经有 `gcc` 和 `make`，整个 `debs/` 里都可以不带。
 
 ---
 
 ## 三、部署步骤
+
+> **好消息：离线包里已经包含了完整的编译工具链。**
+> 40 个 arm64 的 `.deb`（gcc / make / binutils / libc-dev 及其完整依赖闭包，
+> 共 55.5 MB）都在 `debs/` 里。服务器**不需要联网**，也不需要预先装好
+> 任何编译环境——脚本会自动检测并安装。
 
 ### 第 0 步：把 U 盘插到服务器，拷贝文件
 
@@ -84,6 +116,9 @@ cd offline-arm64 && sha256sum debs/*.deb src/*.tar.gz > SHA256SUMS
 # 假设 U 盘挂载在 /media/username/USB
 cp -r /media/$USER/USB/offline-arm64 /home/$USER/
 cd ~/offline-arm64
+
+# 确认关键文件都在
+ls debs/gcc*.deb debs/make*.deb debs/linux-headers*.deb src/*.tar.gz
 ```
 
 ### 第 1 步：确认内核与头文件
@@ -107,18 +142,37 @@ sudo dpkg -i debs/linux-headers-7.3.0-9-generic_arm64.deb
 sha256sum -c SHA256SUMS
 ```
 
-### 第 2 步：解包源码
+### 第 2 步：安装编译工具链（如果服务器上没有）
+
+```bash
+# 一条命令即可，全部离线
+sudo ./install-toolchain.sh
+```
+
+它会安装 `debs/` 里全部 40 个包并打印验证结果：
+
+```
+==> gcc: /usr/bin/gcc
+      gcc (Ubuntu 15.3.0-4ubuntu1) 15.3.0
+==> make: /usr/bin/make
+      GNU Make 4.4.1
+```
+
+> **如果服务器上已经有 gcc 和 make，这一步可以跳过。**
+> 先用 `gcc --version && make --version` 检查一下。
+
+### 第 3 步：解包源码
 
 ```bash
 tar xzf src/smifb2-2.6.0.tar.gz
 cd smifb2-2.6.0
 ```
 
-### 第 3 步：编译并安装
+### 第 4 步：编译并安装
 
 ```bash
 # 脚本在仓库里已经带可执行位；如果是从 U 盘拷贝后提示权限不足：
-chmod +x ../build-install.sh ../diagnose.sh
+chmod +x ../build-install.sh ../diagnose.sh ../install-toolchain.sh
 
 sudo ../build-install.sh
 ```
@@ -126,10 +180,11 @@ sudo ../build-install.sh
 > 也可以用 `bash ../build-install.sh` 运行，这样不需要可执行位。
 
 脚本会：
-1. 检查 `/lib/modules/$(uname -r)/build`，若缺失则从 `/usr/src` 创建软链接
+1. 检查 `gcc` / `make`，**没有就自动从 `debs/` 离线安装**（不必手动跑第 2 步）
+2. 检查 `/lib/modules/$(uname -r)/build`，若缺失则从 `/usr/src` 创建软链接
    （Ubuntu 的头文件包**只装到 `/usr/src`，不创建这个链接**，这是最常见的坑）
-2. 检查 `include/drm/drm_drv.h` 是否可解析（能分辨出"基础头文件包没装"这类问题）
-3. `make -C /lib/modules/$(uname -r)/build M=$PWD DKMS_BUILD=1 modules`
+3. 检查 `include/drm/drm_drv.h` 是否可解析（能分辨出"基础头文件包没装"这类问题）
+4. `make -C /lib/modules/$(uname -r)/build M=$PWD DKMS_BUILD=1 modules`
    （日志写到 `build.log`，失败时自动打印最后 40 行）
 4. **编译成功之后**才把 `smifb.ko` 装到 `/lib/modules/$(uname -r)/updates/dkms/`
 5. `depmod -a`
@@ -137,7 +192,7 @@ sudo ../build-install.sh
 > 脚本设计成**可重复执行**、**失败不留下半成品**：任何一步失败都会直接退出，
 > 并且在编译成功之前不会碰 `/lib/modules`。修好问题后重跑即可。
 
-### 第 4 步：处理与内核自带驱动的冲突（重要）
+### 第 5 步：处理与内核自带驱动的冲突（重要）
 
 Ubuntu 26.10 的 arm64 内核**自带** `sm750fb` 驱动（`CONFIG_FB_SM750=m`），
 它注册的是**同一个 PCI ID `126f:0750`**，会抢先占用设备，导致 `smifb` 绑定失败。
@@ -158,16 +213,16 @@ sudo modprobe -r sm750fb
 echo 'blacklist sm750fb' | sudo tee /etc/modprobe.d/blacklist-sm750fb.conf
 ```
 
-### 第 5 步：加载驱动
+### 第 6 步：加载驱动
 
 ```bash
 sudo modprobe smifb
 ```
 
-如果报 `no such device` 或设备仍被占用，回到第 4 步处理冲突。
-如果报 `Unknown symbol` / `invalid module format`，多半是头文件版本和运行中的内核对不上（见 Q6）。
+如果报 `no such device` 或设备仍被占用，回到第 5 步处理冲突。
+如果报 `Unknown symbol` / `invalid module format`，多半是头文件版本和运行中的内核对不上（见 Q8）。
 
-### 第 6 步：验证
+### 第 7 步：验证
 
 ```bash
 sudo ../diagnose.sh
@@ -268,12 +323,36 @@ grep -n "drm_atomic_commit" smi_drv.h
 
 ### Q2: `make` 报 `No rule to make target` 或找不到 `/lib/modules/.../build`
 
-执行第 3 步脚本里的软链接创建逻辑，或手动：
+执行第 4 步脚本里的软链接创建逻辑，或手动：
 
 ```bash
 sudo mkdir -p /lib/modules/$(uname -r)
 sudo ln -sfn /usr/src/linux-headers-$(uname -r) /lib/modules/$(uname -r)/build
 ```
+
+### Q2b: 服务器上没有 gcc / make 怎么办？
+
+**离线包已经包含了完整的编译工具链**，不需要联网。
+
+```bash
+cd ~/offline-arm64
+sudo ./install-toolchain.sh
+```
+
+它会安装 `debs/` 里的 40 个 arm64 包（gcc / make / binutils / libc-dev 及其完整依赖闭包），
+并打印验证结果。
+
+其实第 4 步的 `build-install.sh` **会自动检测**：`gcc` 或 `make` 缺失时，
+它会自己从 `debs/` 装好再继续编译。所以你也可以直接跳过这一步，
+让脚本来装——两种方式结果一样。
+
+先确认一下服务器现状：
+
+```bash
+gcc --version && make --version
+```
+
+如果两个都有，工具链那 40 个包根本不用带（省 55 MB）。
 
 ### Q3: 装完驱动后 Xorg 报错 / 远程桌面变黑
 
@@ -301,7 +380,7 @@ EndSection
 
 ### Q5: 内核升级后驱动失效
 
-直接编译安装的驱动会随内核升级失效，重跑第 3 步脚本即可（用新内核的 headers）。
+直接编译安装的驱动会随内核升级失效，重跑第 4 步脚本即可（用新内核的 headers）。
 注意黑名单文件 `/etc/modprobe.d/blacklist-sm750fb.conf` 会一直生效，不用改。
 
 ### Q6: `modprobe smifb` 报 `no such device` / 设备仍被占用
