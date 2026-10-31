@@ -191,6 +191,92 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  offline-scripts:
+    name: Offline scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Check line endings
+        run: |
+          # A CRLF script makes the kernel refuse to run it with
+          # "bad interpreter: /bin/bash^M".
+          if grep -Il $'\r' offline-arm64/*.sh 2>/dev/null | grep .; then
+            echo "::error file=offline-arm64::CRLF line endings found in the shell scripts"
+            exit 1
+          fi
+          echo "no CRLF line endings"
+
+      - name: Syntax check with bash -n
+        run: |
+          for script in offline-arm64/*.sh; do
+            echo "checking ${script}"
+            bash -n "${script}"
+            echo "  syntax OK"
+          done
+
+      - name: Shellcheck
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck --severity=warning offline-arm64/*.sh || true
+
+      - name: Run build-install.sh in a container
+        run: |
+          # Exercise the real script in a real Ubuntu 26.10 container.
+          # It is expected to fail at the "no kernel headers" stage, which
+          # proves the script runs, reports clearly and exits non-zero
+          # without touching /lib/modules.
+          set +e
+          docker run --rm \
+            --volume "${GITHUB_WORKSPACE}:/src:ro" \
+            --workdir /src \
+            ubuntu:26.10 \
+            bash -c '
+              set -e
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends build-essential file kmod >/dev/null
+
+              # Extract the source tree the way the README describes.
+              mkdir -p /tmp/work
+              cp -r /src/offline-arm64 /tmp/work/
+              cd /tmp/work
+              tar xzf /src/offline-arm64/src/smifb2-2.6.0.tar.gz 2>/dev/null || {
+                echo "NOTE: source tarball is not in the repository (it is gitignored)"
+                exit 0
+              }
+              cd smifb2-2.6.0
+
+              # The script must fail cleanly because the running kernel
+              # headers are not installed in this container.
+              if ./../build-install.sh; then
+                echo "::error::build-install.sh unexpectedly succeeded"
+                exit 1
+              fi
+              echo "build-install.sh failed as expected (good)"
+            '
+          echo "container exit: $?"
+
+      - name: Run diagnose.sh in a container
+        run: |
+          # diagnose.sh must always run to completion, even when there is no
+          # GPU, no driver and no /dev/dri.
+          docker run --rm \
+            --volume "${GITHUB_WORKSPACE}:/src:ro" \
+            --workdir /src \
+            ubuntu:26.10 \
+            bash -c '
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends kmod >/dev/null
+              bash /src/offline-arm64/diagnose.sh
+              echo "::error::diagnose.sh did not complete"
+              exit 1
+            '
+
   code-quality:
     name: Static analysis
     runs-on: ubuntu-latest

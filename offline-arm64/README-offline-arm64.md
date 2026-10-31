@@ -124,21 +124,53 @@ sudo ../build-install.sh
 脚本会：
 1. 检查 `/lib/modules/$(uname -r)/build`，若缺失则从 `/usr/src` 创建软链接
    （Ubuntu 的头文件包**只装到 `/usr/src`，不创建这个链接**，这是最常见的坑）
-2. `make -C /lib/modules/$(uname -r)/build M=$PWD DKMS_BUILD=1 modules`
-3. 把 `smifb.ko` 装到 `/lib/modules/$(uname -r)/updates/dkms/`
-4. `depmod -a`
+2. 检查 `include/drm/drm_drv.h` 是否可解析（能分辨出"基础头文件包没装"这类问题）
+3. `make -C /lib/modules/$(uname -r)/build M=$PWD DKMS_BUILD=1 modules`
+   （日志写到 `build.log`，失败时自动打印最后 40 行）
+4. **编译成功之后**才把 `smifb.ko` 装到 `/lib/modules/$(uname -r)/updates/dkms/`
+5. `depmod -a`
 
-### 第 4 步：加载驱动
+> 脚本设计成**可重复执行**、**失败不留下半成品**：任何一步失败都会直接退出，
+> 并且在编译成功之前不会碰 `/lib/modules`。修好问题后重跑即可。
+
+### 第 4 步：处理与内核自带驱动的冲突（重要）
+
+Ubuntu 26.10 的 arm64 内核**自带** `sm750fb` 驱动（`CONFIG_FB_SM750=m`），
+它注册的是**同一个 PCI ID `126f:0750`**，会抢先占用设备，导致 `smifb` 绑定失败。
+
+先看一眼是谁占着：
+
+```bash
+ls -l /sys/bus/pci/drivers/*/126f:0750 2>/dev/null
+```
+
+如果看到 `sm750fb`，处理掉它：
+
+```bash
+# 先卸载
+sudo modprobe -r sm750fb
+
+# 再拉黑，确保重启后不会自动加载
+echo 'blacklist sm750fb' | sudo tee /etc/modprobe.d/blacklist-sm750fb.conf
+```
+
+### 第 5 步：加载驱动
 
 ```bash
 sudo modprobe smifb
 ```
 
-### 第 5 步：验证
+如果报 `no such device` 或设备仍被占用，回到第 4 步处理冲突。
+如果报 `Unknown symbol` / `invalid module format`，多半是头文件版本和运行中的内核对不上（见 Q6）。
+
+### 第 6 步：验证
 
 ```bash
-sudo ./diagnose.sh
+sudo ../diagnose.sh
 ```
+
+`diagnose.sh` 是**只读**的，不会改动系统；而且刻意没有用 `set -e`，
+即使某项检查失败也会继续跑完，最后给出针对你实际状态的"下一步建议"。
 
 ---
 
@@ -160,6 +192,7 @@ DVI/VGA 连接器
 
 ```bash
 # 试试硬件 I2C 而不是软件 I2C（SM750 上 hwi2c 更可靠）
+sudo modprobe -r smifb
 sudo modprobe smifb hwi2c=1
 ```
 
@@ -168,10 +201,14 @@ sudo modprobe smifb hwi2c=1
 ```bash
 # 强制指定接口（不读 EDID，直接用内建模式表）
 #   nopnp 位掩码: bit0=DVI, bit1=VGA, bit2=HDMI
+sudo modprobe -r smifb
 sudo modprobe smifb nopnp=1 lcd_scale=1 width=1920 height=1080
 ```
 
 不同的位组合对应不同的物理接口，你按实际接线试。
+
+> **注意**：修改模块参数需要先 `modprobe -r smifb` 卸载再重新加载。
+> 只想试参数的话可以用 `modprobe` 的方式一次性传入（见上）。
 
 ### 情况 B：显示器是 LVDS 面板（服务器常见）
 
@@ -261,8 +298,46 @@ EndSection
 ### Q5: 内核升级后驱动失效
 
 直接编译安装的驱动会随内核升级失效，重跑第 3 步脚本即可（用新内核的 headers）。
+注意黑名单文件 `/etc/modprobe.d/blacklist-sm750fb.conf` 会一直生效，不用改。
 
-### Q6: `uname -r` 和我带的头文件版本对不上怎么办？
+### Q6: `modprobe smifb` 报 `no such device` / 设备仍被占用
+
+这是**最可能遇到的问题**：Ubuntu 26.10 的 arm64 内核自带 `sm750fb` 驱动
+（`CONFIG_FB_SM750=m`），注册的是同一个 PCI ID `126f:0750`。
+
+```bash
+# 看谁占着设备
+ls -l /sys/bus/pci/drivers/*/126f:0750
+
+# 卸载并拉黑
+sudo modprobe -r sm750fb
+echo 'blacklist sm750fb' | sudo tee /etc/modprobe.d/blacklist-sm750fb.conf
+
+# 再加载我们的驱动
+sudo modprobe smifb
+```
+
+`diagnose.sh` 的第 3 节会直接告诉你当前是哪个驱动占着设备。
+
+### Q7: `modprobe smifb` 报 `no devices available`
+
+检查 `/proc/cmdline` 里有没有 `nomodeset`：
+
+```bash
+cat /proc/cmdline
+```
+
+如果看到 `nomodeset`，说明内核禁用了 modesetting，`smi_init()` 会直接返回 `-ENODEV`：
+
+```c
+if (drm_firmware_drivers_only() || !smi_modeset)
+        return -ENODEV;
+```
+
+去掉它：编辑 `/etc/default/grub` 的 `GRUB_CMDLINE_LINUX`，删除 `nomodeset`，
+然后 `sudo update-grub && sudo reboot`。
+
+### Q8: `uname -r` 和我带的头文件版本对不上怎么办？
 
 这套头文件对应 `7.3.0-9-generic`。如果你的服务器内核是别的版本号
 （比如 `7.3.0-10-generic` 或 `7.0.0-14-generic`），有两个办法：
@@ -289,7 +364,7 @@ ls /usr/src/
 
 这种情况只需要带 `src/smifb2-2.6.0.tar.gz` 和两个脚本就够了。
 
-### Q7: 鲲鹏920 上有没有已知坑？
+### Q9: 鲲鹏920 上有没有已知坑？
 
 驱动里有针对 ARM 的专门处理：
 
@@ -299,6 +374,9 @@ ls /usr/src/
 
 但要注意 ARM 平台的 I2C（EDID 读取）通道与 x86 不同，如果 EDID 读不到，
 优先尝试 `hwi2c=1`（见"情况 A"）。
+
+另外 ARM 上要留意的是**内核自带的 `sm750fb` 冲突**（见 Q6），
+这是 x86 上不存在、但在你这个平台上必然会遇到的问题。
 
 ---
 
@@ -326,3 +404,27 @@ cat /sys/class/drm/card0-DVI-A-1/modes
 cat /sys/class/graphics/fb0/virtual_size
 # 1920,1080
 ```
+
+---
+
+## 八、如果还是不行：一次排查清单
+
+在服务器上依次执行，把输出保存下来（便于带回分析）：
+
+```bash
+sudo ../diagnose.sh 2>&1 | tee /tmp/smifb-diag.txt
+sudo dmesg | tail -100 > /tmp/smifb-dmesg.txt
+uname -r > /tmp/smifb-uname.txt
+ls -l /sys/bus/pci/drivers/*/126f:0750 >> /tmp/smifb-diag.txt 2>&1
+cat /proc/cmdline >> /tmp/smifb-diag.txt
+```
+
+把这三个文件拷回有网的机器上，我可以据此定位问题。
+
+**最可能的三种情况**：
+
+| 症状 | 原因 | 处理 |
+|---|---|---|
+| `modprobe` 报 `no such device` | 内核自带 `sm750fb` 抢占 | Q6：卸载 + 拉黑 |
+| `modprobe` 报 `no devices available` | 内核带 `nomodeset` 启动 | Q7：改 GRUB |
+| 驱动加载成功但分辨率还是 480p | EDID 读取失败 | 情况 A：试 `hwi2c=1` / `nopnp` |

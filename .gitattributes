@@ -1,0 +1,8 @@
+# Normalise line endings for shell scripts so they remain executable on
+# Linux.  Without this a checkout on Windows would produce CRLF files and
+# the kernel would refuse to run them ("bad interpreter: /bin/bash^M").
+*.sh text eol=lf
+*.conf text eol=lf
+Makefile text eol=lf
+Makefile.kernel text eol=lf
+Kconfig text eol=lf
