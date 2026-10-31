@@ -34,25 +34,29 @@ if [ "${count}" -eq 0 ]; then
 fi
 
 # ---------------------------------------------------------------------
-# 1. Install everything with dpkg.  The order inside the directory is
-#    not significant here because the bundle contains the full closure.
+# 1. Install everything with dpkg.
+#
+# The bundle contains the complete dependency closure, so a single
+# "dpkg -i *.deb" unpacks all of them.  dpkg does not care about the
+# order in that case: it unpacks first and configures afterwards, and
+# --configure -a then sorts the packages out.
 # ---------------------------------------------------------------------
 echo
-echo "==> Installing with dpkg -i (order independent)"
-DEBIAN_FRONTEND=noninteractive dpkg -i "${DEBS}"/*.deb
-dpkg_status=$?
-
-# dpkg -i leaves packages unconfigured when their dependencies are not
-# unpacked yet.  A second pass fixes the ordering.
-if [ "${dpkg_status}" -ne 0 ]; then
-    echo
-    echo "==> dpkg reported errors, running a second pass to fix the ordering"
-    DEBIAN_FRONTEND=noninteractive dpkg -i "${DEBS}"/*.deb || true
-fi
+echo "==> Installing with dpkg -i"
+DEBIAN_FRONTEND=noninteractive dpkg -i "${DEBS}"/*.deb || true
 
 echo
-echo "==> Configuring any packages left unpacked"
+echo "==> Configuring the packages"
 DEBIAN_FRONTEND=noninteractive dpkg --configure -a || true
+
+# A second dpkg pass resolves any package that was left unpacked because
+# its dependency had not been unpacked yet.
+if [ "$(dpkg -l | grep -c '^i[^i ]')" -gt 0 ]; then
+    echo
+    echo "==> Second pass for the packages that are still unpacked"
+    DEBIAN_FRONTEND=noninteractive dpkg -i "${DEBS}"/*.deb || true
+    DEBIAN_FRONTEND=noninteractive dpkg --configure -a || true
+fi
 
 # ---------------------------------------------------------------------
 # 2. Verify.

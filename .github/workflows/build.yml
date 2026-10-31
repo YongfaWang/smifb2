@@ -333,10 +333,12 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up QEMU for arm64
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: Verify arm64 emulation
         run: |
-          sudo apt-get update
-          sudo apt-get install -y -qq qemu-user-static binfmt-support
-          docker run --privileged --rm tonistiigi/binfmt --install arm64
           docker run --rm --platform linux/arm64 ubuntu:26.10 uname -m
 
       - name: Build the offline bundle
@@ -427,6 +429,7 @@ jobs:
               echo "== after =="
               gcc --version | head -1
               make --version | head -1
+              modinfo --version | head -1
 
               # ---- step 2: install the kernel headers ----
               echo "== installing the kernel headers =="
@@ -435,11 +438,14 @@ jobs:
               ls -d /usr/src/linux-headers-*
 
               # ---- step 3: build and install the driver ----
+              # The container runs on the CI host kernel, so uname -r does
+              # not match the headers we just installed.  KVER has to be
+              # set explicitly, exactly like it would be on a machine
+              # whose running kernel is 7.3.0-9-generic.
               echo "== building the driver =="
               tar xzf src/smifb2-2.6.0.tar.gz
               cd smifb2-2.6.0
-              KVER="$(ls -d /usr/src/linux-headers-* | tail -1 | sed "s|.*/||; s/^linux-headers-//")"
-              echo "KVER=${KVER}"
+              export KVER=7.3.0-9-generic
               ../build-install.sh
 
               # ---- step 4: verify the module ----
@@ -448,6 +454,7 @@ jobs:
               file smifb.ko
               modinfo smifb.ko
               modinfo -F vermagic smifb.ko
+              modinfo -F vermagic smifb.ko | grep -F "${KVER}"
               test -s /lib/modules/"${KVER}"/updates/dkms/smifb.ko
               echo "the arm64 module was built and installed"
 

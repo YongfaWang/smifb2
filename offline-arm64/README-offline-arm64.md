@@ -46,9 +46,9 @@ offline-arm64\
 
 `debs/` 和 `src/` 下的二进制产物被 `.gitignore` 排除，原因：
 
-- 头文件 + 编译工具链的 deb 合计约 120 MB，会让仓库体积暴涨，且二进制文件无法做 diff 审查
+- 头文件 + 编译工具链的 deb 合计约 123 MB，会让仓库体积暴涨，且二进制文件无法做 diff 审查
 - 这些文件来自 Ubuntu 官方归档，可以随时重新下载
-- `toolchain-manifest.json` 记录了全部 40 个包的**精确文件名、版本和字节数**，
+- `toolchain-manifest.json` 记录了全部 49 个包的**精确文件名、版本和字节数**，
   所以离线包可以在任何有网的机器上**完全一致地**重建出来
 
 **在一台有网的机器上准备完整离线包**（这个仓库的根目录下执行）：
@@ -64,7 +64,7 @@ BASE=https://mirrors.aliyun.com/ubuntu/pool/main/l/linux
 curl -L -O "$BASE/linux-headers-7.3.0-9_7.3.0-9.9_all.deb"
 curl -L -O "$BASE/linux-headers-7.3.0-9-generic_7.3.0-9.9_arm64.deb"
 
-# 3. 编译工具链（gcc/make 的完整依赖闭包，40 个包）
+# 3. 编译工具链（gcc/make/kmod/file 的完整依赖闭包，49 个包）
 python3 - <<'PY'
 import json, os, urllib.request
 base = "https://mirrors.aliyun.com/ubuntu/"
@@ -106,7 +106,7 @@ cd offline-arm64 && sha256sum debs/*.deb src/*.tar.gz > SHA256SUMS
 ## 三、部署步骤
 
 > **好消息：离线包里已经包含了完整的编译工具链。**
-> 40 个 arm64 的 `.deb`（gcc / make / binutils / libc-dev 及其完整依赖闭包，
+> 49 个 arm64 的 `.deb`（gcc / make / binutils / libc-dev / kmod / file 及其完整依赖闭包，
 > 共 55.5 MB）都在 `debs/` 里。服务器**不需要联网**，也不需要预先装好
 > 任何编译环境——脚本会自动检测并安装。
 
@@ -149,7 +149,7 @@ sha256sum -c SHA256SUMS
 sudo ./install-toolchain.sh
 ```
 
-它会安装 `debs/` 里全部 40 个包并打印验证结果：
+它会安装 `debs/` 里全部 49 个包并打印验证结果：
 
 ```
 ==> gcc: /usr/bin/gcc
@@ -339,7 +339,7 @@ cd ~/offline-arm64
 sudo ./install-toolchain.sh
 ```
 
-它会安装 `debs/` 里的 40 个 arm64 包（gcc / make / binutils / libc-dev 及其完整依赖闭包），
+它会安装 `debs/` 里的 49 个 arm64 包（gcc / make / binutils / libc-dev / kmod / file 及其完整依赖闭包），
 并打印验证结果。
 
 其实第 4 步的 `build-install.sh` **会自动检测**：`gcc` 或 `make` 缺失时，
@@ -352,7 +352,7 @@ sudo ./install-toolchain.sh
 gcc --version && make --version
 ```
 
-如果两个都有，工具链那 40 个包根本不用带（省 55 MB）。
+如果两个都有，工具链那 49 个包根本不用带（省 59 MB）。
 
 ### Q3: 装完驱动后 Xorg 报错 / 远程桌面变黑
 
