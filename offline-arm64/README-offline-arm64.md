@@ -184,13 +184,17 @@ sudo ../build-install.sh
 2. 检查 `/lib/modules/$(uname -r)/build`，若缺失则从 `/usr/src` 创建软链接
    （Ubuntu 的头文件包**只装到 `/usr/src`，不创建这个链接**，这是最常见的坑）
 3. 检查 `include/drm/drm_drv.h` 是否可解析（能分辨出"基础头文件包没装"这类问题）
-4. `make -C /lib/modules/$(uname -r)/build M=$PWD DKMS_BUILD=1 modules`
+4. `make -C /lib/modules/$(uname -r)/build M=$PWD modules`
    （日志写到 `build.log`，失败时自动打印最后 40 行）
-4. **编译成功之后**才把 `smifb.ko` 装到 `/lib/modules/$(uname -r)/updates/dkms/`
-5. `depmod -a`
+5. **编译成功之后**才把 `smifb.ko` 装到 `/lib/modules/$(uname -r)/updates/dkms/`
+6. `depmod -a`
 
 > 脚本设计成**可重复执行**、**失败不留下半成品**：任何一步失败都会直接退出，
 > 并且在编译成功之前不会碰 `/lib/modules`。修好问题后重跑即可。
+
+> **注意**：第 4 步的 make 命令**不能**加 `DKMS_BUILD=1`。源码的 `Makefile`
+> 开头是 `ifneq ($(DKMS_BUILD),1)`，一旦设成 1 就不会定义 `obj-m`，
+> make 会"成功"但什么都不编译。脚本已经处理好了，手动执行时也要注意。
 
 ### 第 5 步：处理与内核自带驱动的冲突（重要）
 

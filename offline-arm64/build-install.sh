@@ -150,7 +150,12 @@ echo "==> Building smifb.ko"
 echo "    (this can take a couple of minutes)"
 
 BUILD_LOG="${SRC}/build.log"
-if ! make -C "${BUILD_LINK}" M="${SRC}" DKMS_BUILD=1 modules > "${BUILD_LOG}" 2>&1; then
+
+# The Makefile only defines obj-m (and therefore only builds a module) when
+# DKMS_BUILD is NOT set to 1.  Passing DKMS_BUILD=1 makes the build a no-op
+# that reports success without producing anything, so it must not be used
+# here.  See the "ifneq ($(DKMS_BUILD),1)" guard at the top of the Makefile.
+if ! make -C "${BUILD_LINK}" M="${SRC}" modules > "${BUILD_LOG}" 2>&1; then
     echo "!! Build failed.  Last 40 lines of ${BUILD_LOG}:" >&2
     echo "--------------------------------------------------------------" >&2
     tail -n 40 "${BUILD_LOG}" >&2
@@ -159,7 +164,13 @@ if ! make -C "${BUILD_LINK}" M="${SRC}" DKMS_BUILD=1 modules > "${BUILD_LOG}" 2>
 fi
 
 if [ ! -f "${SRC}/smifb.ko" ]; then
-    fail "the build reported success but ${SRC}/smifb.ko does not exist"
+    echo "!! The build reported success but ${SRC}/smifb.ko does not exist." >&2
+    echo "!! This usually means the Makefile did not pick up the module to" >&2
+    echo "!! build.  Last 40 lines of ${BUILD_LOG}:" >&2
+    echo "--------------------------------------------------------------" >&2
+    tail -n 40 "${BUILD_LOG}" >&2
+    echo "--------------------------------------------------------------" >&2
+    fail "no module was produced"
 fi
 
 echo "==> Build succeeded:"

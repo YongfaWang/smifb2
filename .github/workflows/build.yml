@@ -195,7 +195,6 @@ jobs:
     name: Offline scripts
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -237,6 +236,38 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y shellcheck
           shellcheck --severity=warning offline-arm64/*.sh || true
+
+      - name: The make command in build-install.sh must produce a module
+        run: |
+          # build-install.sh runs
+          #     make -C "$BUILD_LINK" M="$SRC" modules
+          # The Makefile guards the obj-m definition with
+          # "ifneq ($(DKMS_BUILD),1)", so passing DKMS_BUILD=1 would turn
+          # the build into a no-op that still reports success.  This step
+          # builds a module with exactly the command the script uses, so
+          # that mistake cannot come back unnoticed.
+          docker run --rm \
+            --volume "${GITHUB_WORKSPACE}:/src" \
+            --workdir /src \
+            ubuntu:26.10 \
+            bash -euxc '
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends \
+                build-essential file kmod linux-headers-7.3.0-9-generic >/dev/null
+
+              KVER=7.3.0-9-generic
+              mkdir -p "/lib/modules/${KVER}"
+              ln -sfn "/usr/src/linux-headers-${KVER}" "/lib/modules/${KVER}/build"
+
+              # This is the exact command from build-install.sh.
+              make -C "/lib/modules/${KVER}/build" M=/src modules
+
+              # The module has to exist, otherwise the build was a no-op.
+              test -s /src/smifb.ko
+              file /src/smifb.ko
+              modinfo -F vermagic /src/smifb.ko
+              echo "the build command produces a real module"
+            '
 
       - name: Run build-install.sh in a container
         run: |
