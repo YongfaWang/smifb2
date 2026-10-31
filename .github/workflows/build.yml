@@ -228,43 +228,68 @@ jobs:
       - name: Run build-install.sh in a container
         run: |
           # Exercise the real script in a real Ubuntu 26.10 container.
-          # It is expected to fail at the "no kernel headers" stage, which
-          # proves the script runs, reports clearly and exits non-zero
-          # without touching /lib/modules.
+          #
+          # The source tree is produced with "git archive" because the
+          # release tarball under offline-arm64/src/ is gitignored.
+          #
+          # The script is expected to fail at the "no kernel headers"
+          # stage.  That proves it runs, reports the reason clearly and
+          # exits non-zero without touching /lib/modules.
+          git archive --format=tar --prefix=smifb2-2.6.0/ HEAD | \
+            tar -x -C "${RUNNER_TEMP}"
+          cp -r offline-arm64 "${RUNNER_TEMP}/"
+
           set +e
           docker run --rm \
-            --volume "${GITHUB_WORKSPACE}:/src:ro" \
-            --workdir /src \
+            --volume "${RUNNER_TEMP}:/work" \
+            --workdir /work/smifb2-2.6.0 \
             ubuntu:26.10 \
             bash -c '
-              set -e
               apt-get update -qq
               apt-get install -y -qq --no-install-recommends build-essential file kmod >/dev/null
 
-              # Extract the source tree the way the README describes.
-              mkdir -p /tmp/work
-              cp -r /src/offline-arm64 /tmp/work/
-              cd /tmp/work
-              tar xzf /src/offline-arm64/src/smifb2-2.6.0.tar.gz 2>/dev/null || {
-                echo "NOTE: source tarball is not in the repository (it is gitignored)"
-                exit 0
-              }
-              cd smifb2-2.6.0
+              # The running kernel headers are deliberately not installed
+              # here (the stock ubuntu:26.10 image has no linux-headers
+              # package), so the script has to fail with a clear message.
+              output="$(../build-install.sh 2>&1)"
+              status=$?
+              echo "${output}"
 
-              # The script must fail cleanly because the running kernel
-              # headers are not installed in this container.
-              if ./../build-install.sh; then
-                echo "::error::build-install.sh unexpectedly succeeded"
+              if [ "${status}" -eq 0 ]; then
+                echo "UNEXPECTED: build-install.sh succeeded without kernel headers"
                 exit 1
               fi
-              echo "build-install.sh failed as expected (good)"
+
+              # The failure message has to mention the headers, otherwise the
+              # script did not fail for the reason we expect.
+              case "${output}" in
+                *"Kernel headers"*) ;;
+                *)
+                  echo "UNEXPECTED: failure message does not mention the kernel headers"
+                  exit 1
+                  ;;
+              esac
+
+              # The script must not have left anything behind in
+              # /lib/modules for the running kernel.
+              if [ -e "/lib/modules/$(uname -r)/updates/dkms/smifb.ko" ]; then
+                echo "UNEXPECTED: the script installed a module despite failing"
+                exit 1
+              fi
+              echo "build-install.sh failed with a clear message and left no residue (good)"
             '
-          echo "container exit: $?"
+          status=$?
+          set -e
+          if [ "${status}" -ne 0 ]; then
+            echo "::error::the container run itself failed (exit ${status})"
+            exit "${status}"
+          fi
 
       - name: Run diagnose.sh in a container
         run: |
           # diagnose.sh must always run to completion, even when there is no
           # GPU, no driver and no /dev/dri.
+          set +e
           docker run --rm \
             --volume "${GITHUB_WORKSPACE}:/src:ro" \
             --workdir /src \
@@ -273,9 +298,14 @@ jobs:
               apt-get update -qq
               apt-get install -y -qq --no-install-recommends kmod >/dev/null
               bash /src/offline-arm64/diagnose.sh
-              echo "::error::diagnose.sh did not complete"
-              exit 1
             '
+          status=$?
+          set -e
+          if [ "${status}" -ne 0 ]; then
+            echo "::error::diagnose.sh exited with ${status}"
+            exit "${status}"
+          fi
+          echo "diagnose.sh completed successfully"
 
   code-quality:
     name: Static analysis

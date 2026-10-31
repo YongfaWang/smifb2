@@ -62,6 +62,17 @@ fi
 if [ -d "${BUILD_LINK}" ]; then
     echo "==> Kernel headers: ${BUILD_LINK} (already present)"
 elif [ -d "${HDR}" ]; then
+    # The generic flavour package symlinks large parts of the tree to the
+    # base package.  Verify that at least one of those targets resolves
+    # BEFORE creating anything, otherwise we would leave a broken link
+    # behind on a system that is missing the base package.
+    if [ ! -e "${HDR}/include/drm/drm_drv.h" ]; then
+        echo "!! '${HDR}/include/drm/drm_drv.h' is missing." >&2
+        echo "!! This usually means the base header package is not installed." >&2
+        echo "!! Install BOTH linux-headers-<ver> and linux-headers-<ver>-generic." >&2
+        fail "incomplete kernel headers"
+    fi
+
     echo "==> Kernel headers: ${HDR}"
     echo "==> Creating ${BUILD_LINK} -> ${HDR}"
     mkdir -p "/lib/modules/${KVER}" || fail "could not create /lib/modules/${KVER}"
@@ -75,13 +86,10 @@ else
     fail "no kernel headers available"
 fi
 
-# The generic flavour package symlinks large parts of the tree to the base
-# package.  Verify that at least one of those targets resolves, otherwise the
-# build will fail later with confusing "No such file or directory" errors.
+# Sanity check on the tree we are going to build against.
 if [ ! -e "${BUILD_LINK}/include/drm/drm_drv.h" ]; then
     echo "!! '${BUILD_LINK}/include/drm/drm_drv.h' is missing." >&2
-    echo "!! This usually means the base header package is not installed." >&2
-    echo "!! Install BOTH linux-headers-<ver> and linux-headers-<ver>-generic." >&2
+    echo "!! The kernel headers look incomplete." >&2
     fail "incomplete kernel headers"
 fi
 
