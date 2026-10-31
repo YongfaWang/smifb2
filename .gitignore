@@ -1,0 +1,26 @@
+# Offline deployment bundle artifacts.
+#
+# The offline bundle for the ARM64 / Kunpeng 920 setup ships Ubuntu kernel
+# header .deb packages and a source tarball that are only useful when
+# transferring to an air-gapped machine, and are far too large for the
+# repository.  Fetch them from the Ubuntu archive instead; the build and
+# diagnose scripts plus the instructions are tracked.
+/offline-arm64/debs/
+/offline-arm64/src/
+/offline-arm64.zip
+
+# Kernel build output
+*.o
+*.ko
+*.mod
+*.mod.c
+*.symvers
+*.order
+.*.cmd
+.tmp_versions/
+*.tmp
+
+# Editor / OS noise
+*~
+*.swp
+.DS_Store

@@ -36,6 +36,14 @@ jobs:
           - kernel: "7.0"
             image: vicamo/mainline-kernel-headers:7.0
             headers: ""
+          - kernel: "7.1"
+            image: vicamo/mainline-kernel-headers:7.1
+            headers: ""
+          # Ubuntu 26.10 (Stonking) ships the 7.3 kernel and publishes the
+          # matching headers as linux-headers-7.3.0-9-generic.
+          - kernel: "7.3"
+            image: ubuntu:26.10
+            headers: linux-headers-7.3.0-9-generic
 
     # GitHub runs every step in this job inside the selected Docker image.
     container:
@@ -75,6 +83,9 @@ jobs:
         env:
           EXPECTED_KERNEL: ${{ matrix.kernel }}
         run: |
+          # Prefer a prepared /lib/modules/<ver>/build tree.  Distribution
+          # header packages (e.g. Ubuntu's linux-headers-7.3.0-9-generic)
+          # only ship /usr/src/linux-headers-<ver>, so fall back to that.
           KVER="$({
             for directory in /lib/modules/*; do
               [ -d "${directory}/build" ] && basename "${directory}"
@@ -82,7 +93,20 @@ jobs:
           } | sort -V | tail -n 1)"
 
           if [ -z "${KVER}" ]; then
-            echo "No prepared kernel headers found under /lib/modules" >&2
+            KVER="$({
+              for directory in /usr/src/linux-headers-*; do
+                [ -d "${directory}" ] && basename "${directory}" | sed 's/^linux-headers-//'
+              done
+            } | sort -V | tail -n 1)"
+
+            if [ -n "${KVER}" ]; then
+              mkdir -p "/lib/modules/${KVER}"
+              ln -sfn "/usr/src/linux-headers-${KVER}" "/lib/modules/${KVER}/build"
+            fi
+          fi
+
+          if [ -z "${KVER}" ]; then
+            echo "No prepared kernel headers found under /lib/modules or /usr/src" >&2
             exit 1
           fi
 

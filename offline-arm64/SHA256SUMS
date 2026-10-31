@@ -1,0 +1,15 @@
+# Checksums for the offline bundle.
+#
+# Only src/smifb2-2.6.0.tar.gz is tracked in this repository; the .deb files
+# under debs/ are excluded by .gitignore and are meant to be downloaded from
+# the Ubuntu archive (see README-offline-arm64.md).  Their checksums are
+# listed below so a freshly downloaded copy can still be verified.
+#
+# Verify with:  sha256sum -c SHA256SUMS
+# (missing files are reported as "No such file or directory" - that is
+#  expected until the bundle has been assembled locally)
+
+7a3dcca0399238a524e83fed10797f767d7eefa7c4d3195c3e77aa9e65fabf6e  src/smifb2-2.6.0.tar.gz
+32cd89b77fc438fe1a3cb1beaa3668244ab4244fa5f974135444d28226d49c4f  debs/linux-headers-7.3.0-9-generic_arm64.deb
+38461ddb812791b5572eb4c7a48290912e9de36c64a77f632a2688f61a21a472  debs/linux-headers-7.3.0-9_7.3.0-9.9_all.deb
+0ee6d23ff7c35ccef5ed8d7cdc6bce2b07267d8632673acf22538cc61059485e  debs/smifb2-dkms_2.4.3.0.19.g7a73b0c-1_all.deb
