@@ -117,9 +117,13 @@ cd smifb2-2.6.0
 ### 第 3 步：编译并安装
 
 ```bash
-chmod +x ../build-install.sh
+# 脚本在仓库里已经带可执行位；如果是从 U 盘拷贝后提示权限不足：
+chmod +x ../build-install.sh ../diagnose.sh
+
 sudo ../build-install.sh
 ```
+
+> 也可以用 `bash ../build-install.sh` 运行，这样不需要可执行位。
 
 脚本会：
 1. 检查 `/lib/modules/$(uname -r)/build`，若缺失则从 `/usr/src` 创建软链接

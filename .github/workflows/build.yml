@@ -210,6 +210,19 @@ jobs:
           fi
           echo "no CRLF line endings"
 
+      - name: Check the scripts are executable
+        run: |
+          # The scripts are run as "./build-install.sh" on the target
+          # machine, so they must carry the executable bit in the index.
+          for script in offline-arm64/*.sh; do
+            mode="$(git ls-files -s "${script}" | awk '{print $1}')"
+            if [ "${mode}" != "100755" ]; then
+              echo "::error file=${script}::mode is ${mode}, expected 100755"
+              exit 1
+            fi
+            echo "${script}: ${mode}"
+          done
+
       - name: Syntax check with bash -n
         run: |
           for script in offline-arm64/*.sh; do
@@ -235,13 +248,16 @@ jobs:
           # The script is expected to fail at the "no kernel headers"
           # stage.  That proves it runs, reports the reason clearly and
           # exits non-zero without touching /lib/modules.
+          rm -rf "${RUNNER_TEMP}/work"
+          mkdir -p "${RUNNER_TEMP}/work"
           git archive --format=tar --prefix=smifb2-2.6.0/ HEAD | \
-            tar -x -C "${RUNNER_TEMP}"
-          cp -r offline-arm64 "${RUNNER_TEMP}/"
+            tar -x -C "${RUNNER_TEMP}/work"
+          cp -r offline-arm64 "${RUNNER_TEMP}/work/"
+          chmod +x "${RUNNER_TEMP}/work/offline-arm64/"*.sh
 
           set +e
           docker run --rm \
-            --volume "${RUNNER_TEMP}:/work" \
+            --volume "${RUNNER_TEMP}/work:/work" \
             --workdir /work/smifb2-2.6.0 \
             ubuntu:26.10 \
             bash -c '
@@ -251,7 +267,7 @@ jobs:
               # The running kernel headers are deliberately not installed
               # here (the stock ubuntu:26.10 image has no linux-headers
               # package), so the script has to fail with a clear message.
-              output="$(../build-install.sh 2>&1)"
+              output="$(/work/offline-arm64/build-install.sh 2>&1)"
               status=$?
               echo "${output}"
 
